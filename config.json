@@ -1,0 +1,10 @@
+{
+  "adminUsername": "admin",
+  "adminPassword": "csscompass2026",
+  "whatsappNumber": "+923001234567",
+  "firebaseConfig": {
+    "apiKey": "",
+    "databaseUrl": "",
+    "projectId": ""
+  }
+}

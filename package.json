@@ -1,0 +1,11 @@
+{
+  "name": "css-compass",
+  "version": "1.0.0",
+  "description": "CSS & PMS Exam Prep Portal and APK Download",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {}
+}

@@ -1,0 +1,6 @@
+{
+  "name": "CSS Compass",
+  "description": "Premium CSS, PCS, and PMS Exam Preparation App in Pakistan featuring AI Tutor, Mock Exams, Study Plans, Notes, and MCQ Practice.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

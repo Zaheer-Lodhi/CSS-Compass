@@ -1,0 +1,12 @@
+[
+  {
+    "id": "std_1",
+    "name": "Syed Muhammad Ali",
+    "username": "ali_css2026",
+    "email": "ali.css@gmail.com",
+    "password": "Pakistan123!",
+    "isPaid": true,
+    "phone": "+923001234567",
+    "createdAt": "2026-07-12T17:06:12.001Z"
+  }
+]
