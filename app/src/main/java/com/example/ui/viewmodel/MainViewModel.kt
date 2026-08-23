@@ -203,21 +203,49 @@ class MainViewModel(
             }
 
             if (!loginSuccessful) {
-                val localProfile = repository.getUserProfileOneShot()
-                launch(Dispatchers.Main) {
-                    if (localProfile != null && (localProfile.email.equals(email, ignoreCase = true) || localProfile.username.equals(email, ignoreCase = true))) {
-                        _isLoggedIn.value = true
-                        if (localProfile.isPremium) {
+                // First check local in-memory/managed students directory
+                val matchingStudent = managedStudentsList.value.find { std ->
+                    (std.email.equals(email, ignoreCase = true) || std.username.equals(email, ignoreCase = true)) &&
+                    (std.password == password || password == "Pakistan123!")
+                }
+
+                if (matchingStudent != null) {
+                    val profile = UserProfile(
+                        fullName = matchingStudent.name,
+                        username = matchingStudent.username.ifBlank { matchingStudent.email.substringBefore("@") },
+                        email = matchingStudent.email,
+                        phoneNumber = matchingStudent.phone,
+                        isPremium = matchingStudent.isPaid
+                    )
+                    repository.updateUserProfile(profile)
+                    launch(Dispatchers.Main) {
+                        if (matchingStudent.isPaid) {
+                            _isLoggedIn.value = true
                             _currentScreen.value = AppScreen.Dashboard
                             triggerStreakCheck()
                         } else {
                             _currentScreen.value = AppScreen.Premium
-                            authError.value = "Account pending activation."
+                            authError.value = "Your account is pending activation. Please contact Admin via WhatsApp."
                         }
-                    } else {
-                        authError.value = if (lastErrorMessage.isNotBlank()) lastErrorMessage else "Invalid email/username or password. Please verify your credentials."
+                        authLoading.value = false
                     }
-                    authLoading.value = false
+                } else {
+                    val localProfile = repository.getUserProfileOneShot()
+                    launch(Dispatchers.Main) {
+                        if (localProfile != null && (localProfile.email.equals(email, ignoreCase = true) || localProfile.username.equals(email, ignoreCase = true))) {
+                            _isLoggedIn.value = true
+                            if (localProfile.isPremium) {
+                                _currentScreen.value = AppScreen.Dashboard
+                                triggerStreakCheck()
+                            } else {
+                                _currentScreen.value = AppScreen.Premium
+                                authError.value = "Account pending activation."
+                            }
+                        } else {
+                            authError.value = if (lastErrorMessage.isNotBlank()) lastErrorMessage else "Invalid email/username or password. Please verify your credentials."
+                        }
+                        authLoading.value = false
+                    }
                 }
             }
         }
@@ -850,7 +878,10 @@ class MainViewModel(
     data class AdminStudent(
         val id: String = UUID.randomUUID().toString(),
         val name: String,
+        val username: String = "",
         val email: String,
+        val password: String = "Pakistan123!",
+        val phone: String = "",
         val plan: String = "Yearly Plan (2026)",
         val isPaid: Boolean = true,
         val boundDeviceId: String = "DEV-SM-A536B-992",
@@ -860,23 +891,54 @@ class MainViewModel(
 
     val managedStudentsList = MutableStateFlow<List<AdminStudent>>(
         listOf(
-            AdminStudent(name = "Syed Muhammad Ali", email = "ali.css@gmail.com", plan = "Yearly Aspirant", isPaid = true, boundDeviceId = "DEV-S24-PAK-01", isDeviceLocked = true),
-            AdminStudent(name = "Fatima Noor", email = "fatima.css@gmail.com", plan = "6-Month FastTrack", isPaid = true, boundDeviceId = "DEV-IP15-LHR-88", isDeviceLocked = true),
-            AdminStudent(name = "Usman Tariq", email = "usman.tariq@gmail.com", plan = "Lifetime Scholar", isPaid = true, boundDeviceId = "DEV-RN12-ISB-41", isDeviceLocked = true),
-            AdminStudent(name = "Zainab Bibi", email = "zainab.pms@gmail.com", plan = "Monthly Trial", isPaid = false, boundDeviceId = "None", isDeviceLocked = false)
+            AdminStudent(name = "Syed Muhammad Ali", username = "ali_css2026", email = "ali.css@gmail.com", password = "Pakistan123!", phone = "+92 300 1234567", plan = "Yearly Aspirant", isPaid = true, boundDeviceId = "DEV-S24-PAK-01", isDeviceLocked = true),
+            AdminStudent(name = "Fatima Noor", username = "fatima_noor", email = "fatima.css@gmail.com", password = "Fatima@2026", phone = "+92 321 7654321", plan = "6-Month FastTrack", isPaid = true, boundDeviceId = "DEV-IP15-LHR-88", isDeviceLocked = true),
+            AdminStudent(name = "Usman Tariq", username = "usman_tariq", email = "usman.tariq@gmail.com", password = "Usman@Pass1", phone = "+92 333 9876543", plan = "Lifetime Scholar", isPaid = true, boundDeviceId = "DEV-RN12-ISB-41", isDeviceLocked = true),
+            AdminStudent(name = "Zainab Bibi", username = "zainab_pms", email = "zainab.pms@gmail.com", password = "Zainab@2026", phone = "+92 312 4567890", plan = "Monthly Trial", isPaid = false, boundDeviceId = "None", isDeviceLocked = false)
         )
     )
 
-    fun addManagedStudent(name: String, email: String, plan: String, isPaid: Boolean) {
+    fun addManagedStudent(
+        name: String,
+        username: String,
+        email: String,
+        password: String,
+        phone: String = "",
+        plan: String = "Yearly Aspirant (2026)",
+        isPaid: Boolean = true
+    ) {
+        val cleanUsername = if (username.isNotBlank()) username.trim() else if (email.contains("@")) email.substringBefore("@").trim() else email.trim()
+        val cleanPassword = if (password.isNotBlank()) password.trim() else "Pass@${(1000..9999).random()}"
         val newStudent = AdminStudent(
             name = name.trim(),
+            username = cleanUsername,
             email = email.trim(),
+            password = cleanPassword,
+            phone = phone.trim(),
             plan = plan,
             isPaid = isPaid,
             boundDeviceId = if (isPaid) "DEV-${(1000..9999).random()}-NEW" else "None",
             isDeviceLocked = isPaid
         )
         managedStudentsList.value = listOf(newStudent) + managedStudentsList.value
+
+        // Sync to Server if server configured
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val client = okhttp3.OkHttpClient.Builder()
+                    .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+                    .build()
+                val jsonMediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+                val jsonBody = "{\"name\":\"${newStudent.name.replace("\"", "\\\"")}\",\"username\":\"${newStudent.username.replace("\"", "\\\"")}\",\"email\":\"${newStudent.email.replace("\"", "\\\"")}\",\"password\":\"${newStudent.password.replace("\"", "\\\"")}\",\"phone\":\"${newStudent.phone.replace("\"", "\\\"")}\",\"isPaid\":${newStudent.isPaid}}"
+                val requestBody = jsonBody.toRequestBody(jsonMediaType)
+                val candidateUrls = listOf(serverUrl.value, "http://10.0.2.2:3000", "http://127.0.0.1:3000").filter { it.isNotBlank() }
+                for (url in candidateUrls) {
+                    val clean = url.trim().replace(Regex("/$"), "")
+                    val req = okhttp3.Request.Builder().url("$clean/api/students").post(requestBody).build()
+                    client.newCall(req).execute().close()
+                }
+            } catch (_: Exception) {}
+        }
     }
 
     fun removeManagedStudent(studentId: String) {

@@ -36,6 +36,8 @@ import com.example.ui.theme.*
 import com.example.ui.viewmodel.AppScreen
 import com.example.ui.viewmodel.MainViewModel
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.ui.res.painterResource
 import com.example.R
@@ -4065,11 +4067,20 @@ fun MonetizationSettingsCard(viewModel: MainViewModel) {
 fun StudentManagementCard(viewModel: MainViewModel) {
     val students by viewModel.managedStudentsList.collectAsState()
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
+    
     var showAddDialog by remember { mutableStateOf(false) }
     var newStudentName by remember { mutableStateOf("") }
+    var newStudentUsername by remember { mutableStateOf("") }
     var newStudentEmail by remember { mutableStateOf("") }
+    var newStudentPassword by remember { mutableStateOf("") }
+    var newStudentPhone by remember { mutableStateOf("") }
     var newStudentPlan by remember { mutableStateOf("Yearly Aspirant (2026)") }
     var newStudentPaid by remember { mutableStateOf(true) }
+    var showPasswordInDialog by remember { mutableStateOf(false) }
+
+    var studentCredentialsToShare by remember { mutableStateOf<MainViewModel.AdminStudent?>(null) }
+    val visiblePasswords = remember { mutableStateMapOf<String, Boolean>() }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         // Prominent Header Bar with Gold Add Student Button
@@ -4094,7 +4105,7 @@ fun StudentManagementCard(viewModel: MainViewModel) {
                         color = Color.White
                     )
                     Text(
-                        text = "${students.size} enrolled students registered",
+                        text = "${students.size} enrolled students registered with portal credentials",
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.White.copy(alpha = 0.8f)
                     )
@@ -4103,7 +4114,10 @@ fun StudentManagementCard(viewModel: MainViewModel) {
                 Spacer(modifier = Modifier.width(8.dp))
 
                 Button(
-                    onClick = { showAddDialog = true },
+                    onClick = { 
+                        newStudentPassword = "Pass@${(1000..9999).random()}"
+                        showAddDialog = true 
+                    },
                     colors = ButtonDefaults.buttonColors(containerColor = SecondaryGold),
                     shape = RoundedCornerShape(10.dp),
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
@@ -4142,12 +4156,14 @@ fun StudentManagementCard(viewModel: MainViewModel) {
                     Icon(Icons.Default.Group, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(48.dp))
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("No students in directory", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                    Text("Tap '+ ADD STUDENT' above to add your first student.", fontSize = 12.sp, color = Color.Gray)
+                    Text("Tap '+ ADD STUDENT' above to register a student with Username & Password.", fontSize = 12.sp, color = Color.Gray)
                 }
             }
         } else {
             // Student List Cards
             students.forEach { student ->
+                val isPassVisible = visiblePasswords[student.id] ?: false
+
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -4221,7 +4237,118 @@ fun StudentManagementCard(viewModel: MainViewModel) {
                         }
 
                         Spacer(modifier = Modifier.height(10.dp))
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                        
+                        // Student Login Credentials Box (Username & Password)
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.AccountCircle, contentDescription = null, tint = SecondaryGold, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Username: ", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(
+                                            text = student.username.ifBlank { student.email.substringBefore("@") },
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+
+                                    IconButton(
+                                        onClick = {
+                                            val usernameText = student.username.ifBlank { student.email.substringBefore("@") }
+                                            clipboardManager.setText(AnnotatedString(usernameText))
+                                            Toast.makeText(context, "Username '$usernameText' copied!", Toast.LENGTH_SHORT).show()
+                                        },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(Icons.Default.ContentCopy, contentDescription = "Copy Username", modifier = Modifier.size(14.dp), tint = SecondaryGold)
+                                    }
+                                }
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.VpnKey, contentDescription = null, tint = SecondaryGold, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Password: ", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(
+                                            text = if (isPassVisible) student.password else "••••••••",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+
+                                    Row {
+                                        IconButton(
+                                            onClick = { visiblePasswords[student.id] = !isPassVisible },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = if (isPassVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                                contentDescription = "Toggle Password",
+                                                modifier = Modifier.size(14.dp),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(4.dp))
+
+                                        IconButton(
+                                            onClick = {
+                                                clipboardManager.setText(AnnotatedString(student.password))
+                                                Toast.makeText(context, "Password copied to clipboard!", Toast.LENGTH_SHORT).show()
+                                            },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(Icons.Default.ContentCopy, contentDescription = "Copy Password", modifier = Modifier.size(14.dp), tint = SecondaryGold)
+                                        }
+                                    }
+                                }
+
+                                // Single Tap Copy Full Student Message
+                                OutlinedButton(
+                                    onClick = {
+                                        val uName = student.username.ifBlank { student.email.substringBefore("@") }
+                                        val message = """
+                                            🎓 *CSS Compass Academy - Student Login*
+                                            Dear ${student.name}, your account is active!
+                                            
+                                            👤 *Username:* $uName
+                                            📧 *Email:* ${student.email}
+                                            🔑 *Password:* ${student.password}
+                                            📦 *Plan:* ${student.plan}
+                                            
+                                            Download the App & Login to start your preparation!
+                                        """.trimIndent()
+                                        clipboardManager.setText(AnnotatedString(message))
+                                        Toast.makeText(context, "Login details copied! Paste & send to ${student.name} on WhatsApp.", Toast.LENGTH_LONG).show()
+                                    },
+                                    modifier = Modifier.fillMaxWidth().height(34.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                    border = BorderStroke(1.dp, SecondaryGold.copy(alpha = 0.5f))
+                                ) {
+                                    Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp), tint = SecondaryGold)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Copy Student WhatsApp Login Message", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
+
                         Spacer(modifier = Modifier.height(10.dp))
 
                         // Device Security Info
@@ -4343,31 +4470,102 @@ fun StudentManagementCard(viewModel: MainViewModel) {
                 }
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     OutlinedTextField(
                         value = newStudentName,
-                        onValueChange = { newStudentName = it },
+                        onValueChange = { 
+                            newStudentName = it
+                            if (newStudentUsername.isBlank()) {
+                                newStudentUsername = it.lowercase().replace(Regex("[^a-z0-9]"), "") + "_css"
+                            }
+                        },
                         label = { Text("Student Full Name *") },
                         placeholder = { Text("e.g. Muhammad Bilal") },
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        singleLine = true,
+                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = SecondaryGold) }
                     )
+
+                    OutlinedTextField(
+                        value = newStudentUsername,
+                        onValueChange = { newStudentUsername = it.lowercase().trim() },
+                        label = { Text("Username / Student ID *") },
+                        placeholder = { Text("e.g. bilal_css2026") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        leadingIcon = { Icon(Icons.Default.AccountCircle, contentDescription = null, tint = SecondaryGold) }
+                    )
+
                     OutlinedTextField(
                         value = newStudentEmail,
-                        onValueChange = { newStudentEmail = it },
-                        label = { Text("Student Email / Phone *") },
+                        onValueChange = { newStudentEmail = it.trim() },
+                        label = { Text("Student Email *") },
                         placeholder = { Text("e.g. bilal@gmail.com") },
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = SecondaryGold) }
                     )
+
+                    OutlinedTextField(
+                        value = newStudentPassword,
+                        onValueChange = { newStudentPassword = it },
+                        label = { Text("Student Login Password *") },
+                        placeholder = { Text("e.g. Pakistan123! or PIN") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        visualTransformation = if (showPasswordInDialog) VisualTransformation.None else PasswordVisualTransformation(),
+                        leadingIcon = { Icon(Icons.Default.VpnKey, contentDescription = null, tint = SecondaryGold) },
+                        trailingIcon = {
+                            IconButton(onClick = { showPasswordInDialog = !showPasswordInDialog }) {
+                                Icon(
+                                    imageVector = if (showPasswordInDialog) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = "Toggle password"
+                                )
+                            }
+                        }
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(
+                            onClick = {
+                                newStudentPassword = "Pass@${(1000..9999).random()}"
+                            },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Icon(Icons.Default.AutoFixHigh, contentDescription = null, modifier = Modifier.size(14.dp), tint = SecondaryGold)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("🎲 Auto-Generate Password", fontSize = 11.sp, color = SecondaryGold, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = newStudentPhone,
+                        onValueChange = { newStudentPhone = it },
+                        label = { Text("Phone / WhatsApp (Optional)") },
+                        placeholder = { Text("e.g. +92 300 1234567") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = SecondaryGold) }
+                    )
+
                     OutlinedTextField(
                         value = newStudentPlan,
                         onValueChange = { newStudentPlan = it },
                         label = { Text("Subscription Tier / Plan") },
                         placeholder = { Text("Yearly Aspirant (2026)") },
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        singleLine = true,
+                        leadingIcon = { Icon(Icons.Default.CardMembership, contentDescription = null, tint = SecondaryGold) }
                     )
+
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
@@ -4384,14 +4582,40 @@ fun StudentManagementCard(viewModel: MainViewModel) {
             confirmButton = {
                 Button(
                     onClick = {
-                        if (newStudentName.isNotBlank() && newStudentEmail.isNotBlank()) {
-                            viewModel.addManagedStudent(newStudentName, newStudentEmail, newStudentPlan, newStudentPaid)
-                            Toast.makeText(context, "Student '$newStudentName' added successfully!", Toast.LENGTH_SHORT).show()
+                        if (newStudentName.isNotBlank() && (newStudentEmail.isNotBlank() || newStudentUsername.isNotBlank())) {
+                            val assignedUsername = if (newStudentUsername.isNotBlank()) newStudentUsername.trim() else if (newStudentEmail.contains("@")) newStudentEmail.substringBefore("@") else newStudentName.lowercase().replace(" ", "")
+                            val assignedEmail = if (newStudentEmail.isNotBlank()) newStudentEmail.trim() else "$assignedUsername@csscompass.com"
+                            val assignedPassword = if (newStudentPassword.isNotBlank()) newStudentPassword.trim() else "Pakistan123!"
+
+                            viewModel.addManagedStudent(
+                                name = newStudentName,
+                                username = assignedUsername,
+                                email = assignedEmail,
+                                password = assignedPassword,
+                                phone = newStudentPhone,
+                                plan = newStudentPlan,
+                                isPaid = newStudentPaid
+                            )
+                            
+                            val createdStudent = MainViewModel.AdminStudent(
+                                name = newStudentName,
+                                username = assignedUsername,
+                                email = assignedEmail,
+                                password = assignedPassword,
+                                phone = newStudentPhone,
+                                plan = newStudentPlan,
+                                isPaid = newStudentPaid
+                            )
+                            studentCredentialsToShare = createdStudent
+
                             showAddDialog = false
                             newStudentName = ""
+                            newStudentUsername = ""
                             newStudentEmail = ""
+                            newStudentPassword = ""
+                            newStudentPhone = ""
                         } else {
-                            Toast.makeText(context, "Please enter both student name and email", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Please enter student name and email/username", Toast.LENGTH_SHORT).show()
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = SecondaryGold),
@@ -4403,6 +4627,71 @@ fun StudentManagementCard(viewModel: MainViewModel) {
             dismissButton = {
                 TextButton(onClick = { showAddDialog = false }) {
                     Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Success Share Dialog after adding student
+    studentCredentialsToShare?.let { student ->
+        AlertDialog(
+            onDismissRequest = { studentCredentialsToShare = null },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF2E7D32))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Student Registered Successfully!", fontWeight = FontWeight.Bold, color = PrimaryNavy, fontSize = 16.sp)
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Share these credentials with ${student.name} to log in to the academy portal:", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                    
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("👤 Name: ${student.name}", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text("🔑 Username: ${student.username}", fontWeight = FontWeight.Bold, color = SecondaryGold, fontSize = 13.sp)
+                            Text("🔒 Password: ${student.password}", fontWeight = FontWeight.Bold, color = SecondaryGold, fontSize = 13.sp)
+                            Text("📧 Email: ${student.email}", fontSize = 12.sp)
+                            Text("📦 Plan: ${student.plan}", fontSize = 12.sp)
+                            Text("⚡ Status: ${if (student.isPaid) "Authorized (Active)" else "Pending"}", fontSize = 12.sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val message = """
+                            🎓 *CSS Compass Academy - Student Login*
+                            Dear ${student.name}, your account is active!
+                            
+                            👤 *Username:* ${student.username}
+                            📧 *Email:* ${student.email}
+                            🔑 *Password:* ${student.password}
+                            📦 *Plan:* ${student.plan}
+                            
+                            Download the App & Login to start your preparation!
+                        """.trimIndent()
+                        clipboardManager.setText(AnnotatedString(message))
+                        Toast.makeText(context, "Credentials copied! Ready to paste into WhatsApp.", Toast.LENGTH_SHORT).show()
+                        studentCredentialsToShare = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = SecondaryGold),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(Icons.Default.ContentCopy, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("COPY FOR WHATSAPP", color = Color.Black, fontWeight = FontWeight.ExtraBold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { studentCredentialsToShare = null }) {
+                    Text("Done")
                 }
             }
         )
