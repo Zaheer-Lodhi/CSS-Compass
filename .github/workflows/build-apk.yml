@@ -33,19 +33,19 @@ jobs:
           fi
           touch .env
 
-      - name: Setup Gradle
+      - name: Setup Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v3
         with:
-          gradle-version: '8.11.1'
+          gradle-version: '9.3.1'
 
       - name: Build Debug APK
         run: gradle :app:assembleDebug --stacktrace --no-daemon
 
-      - name: Find and Upload APK
+      - name: Upload APK to Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: CSS-Compass-App-APK
-          path: app/build/outputs/apk/debug/*.apk
+          name: CSS-Compass-Academy-App
+          path: app/build/outputs/apk/debug/app-debug.apk
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -57,6 +57,6 @@ jobs:
             ## CSS Compass Academy - Complete Android App
             Download `app-debug.apk` directly to your phone to install.
           files: |
-            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/debug/app-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
