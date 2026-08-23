@@ -22,40 +22,39 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
+          cache: 'gradle'
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Restore Keystore & Secrets
+      - name: Prepare Keystore and Environment
         run: |
           if [ -f "debug.keystore.base64" ]; then
             base64 -d debug.keystore.base64 > debug.keystore
           fi
           touch .env
 
-      - name: Setup Gradle 9.3.1
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: '9.3.1'
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
 
-      - name: Build Debug APK
-        run: gradle :app:assembleDebug --stacktrace --no-daemon
+      - name: Build Debug APK with Gradle Wrapper
+        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK to Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: CSS-Compass-Academy-App
+          name: CSS-Compass-v1.0-APK
           path: app/build/outputs/apk/debug/app-debug.apk
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
         with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: CSS Compass Academy v1.0.${{ github.run_number }}
+          tag_name: release-${{ github.run_number }}
+          name: CSS Compass Academy App (v1.0.${{ github.run_number }})
           body: |
-            ## CSS Compass Academy - Complete Android App
-            Download `app-debug.apk` directly to your phone to install.
+            # 📱 CSS Compass Academy - Android App APK
+            Download **`app-debug.apk`** below to install directly on your Android phone.
           files: |
             app/build/outputs/apk/debug/app-debug.apk
         env:
