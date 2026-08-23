@@ -26,8 +26,10 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Setup Gradle Environment
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.11.1'
 
       - name: Prepare Signing Keystore & Env
         run: |
@@ -35,14 +37,12 @@ jobs:
             base64 -d debug.keystore.base64 > debug.keystore
           fi
           touch .env
-          chmod +x gradlew
 
       - name: Build Debug APK
-        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK to Artifacts (Direct Download)
         uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: CSS-Compass-Academy-App
           path: app/build/outputs/apk/debug/app-debug.apk
