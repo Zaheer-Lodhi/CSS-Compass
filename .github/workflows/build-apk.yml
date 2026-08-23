@@ -26,31 +26,36 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Setup Gradle
+      - name: Setup Gradle Environment
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+      - name: Prepare Signing Keystore & Env
+        run: |
+          if [ -f "debug.keystore.base64" ]; then
+            base64 -d debug.keystore.base64 > debug.keystore
+          fi
+          touch .env
+          chmod +x gradlew
 
       - name: Build Debug APK
         run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
 
-      - name: Upload APK Artifact (Instant Download)
+      - name: Upload APK to Artifacts (Direct Download)
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: CSS-Compass-Academy-App
           path: app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Create GitHub Release with APK
+      - name: Create GitHub Release with Direct APK Download
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main'
         with:
           tag_name: v1.0.${{ github.run_number }}
           name: CSS Compass Academy v1.0.${{ github.run_number }}
           body: |
-            ## CSS Compass Academy App
-            Download the `app-debug.apk` file below directly onto your Android device to install.
+            ## CSS Compass Academy - Ready to Install
+            Download `app-debug.apk` directly to your Android device to install.
           files: |
             app/build/outputs/apk/debug/app-debug.apk
         env:
